@@ -2,8 +2,6 @@
 
 namespace duncan3dc\Sonos;
 
-use duncan3dc\DomParser\XmlParser;
-
 /**
  * Provides an interface to individual speakers that is mostly read-only, although the volume can be set using this class.
  */
@@ -15,6 +13,11 @@ class Speaker
     public $ip;
 
     /**
+     * @var Http $http The instance of the Http class to send requests to
+     */
+    protected $http;
+
+    /**
      * @var string $name The "Friendly" name reported by the speaker.
      */
     public $name;
@@ -23,11 +26,6 @@ class Speaker
      * @var string $room The room name assigned to this speaker.
      */
     public $room;
-
-    /**
-     * @var array $cache Cached data to increase performance.
-     */
-    protected $cache = [];
 
     /**
      * @var string $group The group id this speaker is a part of.
@@ -53,40 +51,27 @@ class Speaker
     /**
      * Create an instance of the Speaker class.
      *
-     * @param string $ip The ip address that the speaker is listening on
+     * @param Http|string $param An Http instance or the ip address that the speaker is listening on
      */
-    public function __construct($ip)
+    public function __construct($param)
     {
-        $this->ip = $ip;
-
-        $parser = $this->getXml("/xml/device_description.xml");
-        $device = $parser->getTag("device");
-        $this->name = $device->getTag("friendlyName")->nodeValue;
-        $this->room = $device->getTag("roomName")->nodeValue;
-    }
-
-
-    /**
-     * Retrieve some xml from the speaker.
-     * _This method is intended for internal use only._
-     *
-     * @param string $url The url to retrieve
-     *
-     * @return XmlParser
-     */
-    public function getXml($url)
-    {
-        if (!isset($this->cache[$url])) {
-            $this->cache[$url] = new XmlParser("http://" . $this->ip . ":1400" . $url);
+        if ($param instanceof Http) {
+            $this->http = $param;
+            $this->ip = $this->http->ip;
+        } else {
+            $this->ip = $param;
+            $this->http = new Http($this->ip);
         }
 
-        return $this->cache[$url];
+        $parser = $this->http->getXml("/xml/device_description.xml");
+        $device = $parser->getTag("device");
+        $this->name = (string) $device->getTag("friendlyName");
+        $this->room = (string) $device->getTag("roomName");
     }
 
 
     /**
      * Send a soap request to the speaker.
-     * _This method is intended for internal use only_.
      *
      * @param string $service The service to send the request to
      * @param string $action The action to call
@@ -96,39 +81,7 @@ class Speaker
      */
     public function soap($service, $action, $params = [])
     {
-        switch ($service) {
-            case "AVTransport";
-            case "RenderingControl":
-                $path = "MediaRenderer";
-                break;
-            case "ContentDirectory":
-                $path = "MediaServer";
-                break;
-            case "AlarmClock":
-                $path = null;
-                break;
-            default:
-                throw new \InvalidArgumentException("Unknown service (" . $service . ")");
-        }
-
-        $location = "http://" . $this->ip . ":1400/";
-        if ($path) {
-            $location .= $path . "/";
-        }
-        $location .= $service . "/Control";
-
-        $soap = new \SoapClient(null, [
-            "location"  =>  $location,
-            "uri"       =>  "urn:schemas-upnp-org:service:" . $service . ":1",
-        ]);
-
-        $soapParams = [];
-        $params["InstanceID"] = 0;
-        foreach ($params as $key => $val) {
-            $soapParams[] = new \SoapParam(new \SoapVar($val, XSD_STRING), $key);
-        }
-
-        return $soap->__soapCall($action, $soapParams);
+        return $this->http->soap($service, $action, $params);
     }
 
 
@@ -144,7 +97,7 @@ class Speaker
             return;
         }
 
-        $topology = $this->getXml("/status/topology");
+        $topology = $this->http->getXml("/status/topology");
         $players = $topology->getTag("ZonePlayers")->getTags("ZonePlayer");
         foreach ($players as $player) {
             $attributes = $player->getAttributes();
