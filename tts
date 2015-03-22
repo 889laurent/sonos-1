@@ -1,0 +1,40 @@
+protected function CutString($string,$intmax)
+{
+$i = 0;
+while (strlen($string) > $intmax)
+{
+$string_cut = substr($string, 0, $intmax);
+$last_space = strrpos($string_cut, "+");
+$strings[$i] = substr($string, 0, $last_space);
+$string = substr($string, $last_space, strlen($string));
+$i++;
+}
+$strings[$i] = $string;
+return $strings;
+}
+public function TTSToMp3($words,$lang)
+{
+// Directory
+$folder = "audio/".$lang;
+// Replace the non-alphanumeric characters
+// The spaces in the sentence are replaced with the Plus symbol
+$words = urlencode($words);
+// Name of the MP3 file generated using the MD5 hash
+$file = md5($words);
+// If folder doesn't exists, create it
+if (!file_exists($folder))
+mkdir($folder, 0755, true);
+// Save the MP3 file in this folder with the .mp3 extension
+$file = $folder."/TTS-".$file.".mp3";
+// If the MP3 file exists, do not create a new request
+if (!file_exists($file))
+{
+// Google Translate API cannot handle strings > 100 characters
+$words = $this->CutString($words,100);
+ini_set('user_agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:21.0) Gecko/20100101 Firefox/21.0');
+$mp3 = "";
+for ($i = 0; $i < count($words); $i++)
+$mp3[$i] = file_get_contents('http://translate.google.com/translate_tts?q='.$words[$i].'&tl='.$lang);
+file_put_contents($file, $mp3);
+}
+return $file;
