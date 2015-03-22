@@ -1,0 +1,17 @@
+$directory = "192.168.0.108/Partage/duncan/";
+$message = "test message";
+$volume2 = 50;
+$lang = "fr";
+$filetts = $controller->TTSToMp3($message,$lang);
+$queue = $controller->getQueue();
+$state = $controller->getStateDetails();
+$shuffle = 0;
+$postrack = $state->queueNumber;
+$queue->addTrack("x-file-cifs://" .$directory . $filetts ); 
+$numberOfTracks = count($queue);
+$controller->selectTrack($numberOfTracks) ;
+$controller->setvolume($volume2);
+$controller->setShuffle($shuffle);
+$controller->play(); 
+$queue->removeTrack($numberOfTracks-1); 
+$controller->selectTrack($postrack) ;
